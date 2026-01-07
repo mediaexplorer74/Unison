@@ -738,8 +738,8 @@ namespace Unison.UWPApp.Client
             System.Diagnostics.Debug.WriteLine($"[Signal]   SignalMessage proto: {msgProto.Length} bytes, RatchetKey: {BitConverter.ToString(ratchetKey33.Take(4).ToArray())}...");
 
             // 6. Build final message: [version byte] + [protobuf] + [MAC(8)]
-            // Version byte: high nibble = version (3), low nibble = type (3 for pkmsg/msg in BaileysCSharp)
-            byte versionByte = (byte)((3 << 4) | 3);
+            // Signal Protocol: WhisperMessage (inner message) is always Type 2
+            byte versionByte = (byte)((3 << 4) | 3); // 0x33
             
             // CRITICAL: MAC must include identity keys per Signal spec!
             // MAC input = ourIdentityPub(33) + theirIdentityPub(33) + version(1) + msgProto
@@ -758,8 +758,6 @@ namespace Unison.UWPApp.Client
             Array.Copy(msgProto, 0, macInput, 67, msgProto.Length);
             
             System.Diagnostics.Debug.WriteLine($"[Signal]   MAC input: {macInput.Length} bytes (ourId + theirId + ver + proto)");
-            System.Diagnostics.Debug.WriteLine($"[Signal]   OurIdentity: {BitConverter.ToString(ourIdentityPub.Take(4).ToArray())}...");
-            System.Diagnostics.Debug.WriteLine($"[Signal]   TheirIdentity: {BitConverter.ToString(theirIdentityPub.Take(4).ToArray())}...");
             
             byte[] fullMac = Crypto.CryptoUtils.HmacSha256(macInput, macKey);
             byte[] mac8 = new byte[8];
@@ -782,12 +780,13 @@ namespace Unison.UWPApp.Client
 
             if (session.IsPendingPreKey)
             {
-                System.Diagnostics.Debug.WriteLine($"[Signal] PKMSG Construction (Manual Tags):");
+                System.Diagnostics.Debug.WriteLine($"[Signal] PKMSG Construction (STANDARD SIGNAL TAGS):");
                 System.Diagnostics.Debug.WriteLine($"[Signal]   Using RegistrationId: {_authState.RegistrationId}");
                 System.Diagnostics.Debug.WriteLine($"[Signal]   PreKeyId: {session.PendingPreKeyId}");
                 System.Diagnostics.Debug.WriteLine($"[Signal]   SignedPreKeyId: {session.PendingSignedPreKeyId}");
 
-                // Standard Signal PreKeySignalMessage Tags:
+                // CRITICAL: We MUST use standard Signal Protocol tags for Baileys/Signal compatibility!
+                // WhatsApp's generated WAProto.cs has them scrambled, so we serialize manually.
                 // 1. registrationId (uint32)
                 // 2. preKeyId (uint32)
                 // 3. signedPreKeyId (uint32)
@@ -799,52 +798,52 @@ namespace Unison.UWPApp.Client
                 {
                     var output = new Google.Protobuf.CodedOutputStream(ms);
                     
-                    // Tag 1: registrationId
-                    output.WriteTag(1, Google.Protobuf.WireFormat.WireType.Varint);
-                    output.WriteUInt32((uint)_authState.RegistrationId);
-                    
-                    // Tag 2: preKeyId
+                    // Tag 1: preKeyId (optional)
                     if (session.PendingPreKeyId.HasValue)
                     {
-                        output.WriteTag(2, Google.Protobuf.WireFormat.WireType.Varint);
+                        output.WriteTag(1, Google.Protobuf.WireFormat.WireType.Varint);
                         output.WriteUInt32(session.PendingPreKeyId.Value);
                     }
-                    
-                    // Tag 3: signedPreKeyId
-                    output.WriteTag(3, Google.Protobuf.WireFormat.WireType.Varint);
-                    output.WriteUInt32((uint)(session.PendingSignedPreKeyId ?? 0));
-                    
-                    // Tag 4: baseKey
+
+                    // Tag 2: baseKey
                     byte[] baseKey33 = Crypto.CryptoUtils.GenerateSignalPubKey(session.PendingBaseKey);
-                    output.WriteTag(4, Google.Protobuf.WireFormat.WireType.LengthDelimited);
+                    output.WriteTag(2, Google.Protobuf.WireFormat.WireType.LengthDelimited);
                     output.WriteBytes(Google.Protobuf.ByteString.CopyFrom(baseKey33));
                     
-                    // Tag 5: identityKey
+                    // Tag 3: identityKey
                     byte[] identityKey33 = Crypto.CryptoUtils.GenerateSignalPubKey(_authState.SignedIdentityKey.Public);
-                    output.WriteTag(5, Google.Protobuf.WireFormat.WireType.LengthDelimited);
+                    output.WriteTag(3, Google.Protobuf.WireFormat.WireType.LengthDelimited);
                     output.WriteBytes(Google.Protobuf.ByteString.CopyFrom(identityKey33));
                     
-                    // Tag 6: message (WhisperMessage with version and MAC)
-                    output.WriteTag(6, Google.Protobuf.WireFormat.WireType.LengthDelimited);
+                    // Tag 4: message (WhisperMessage with version and MAC)
+                    output.WriteTag(4, Google.Protobuf.WireFormat.WireType.LengthDelimited);
                     output.WriteBytes(Google.Protobuf.ByteString.CopyFrom(result));
+
+                    // Tag 5: registrationId
+                    output.WriteTag(5, Google.Protobuf.WireFormat.WireType.Varint);
+                    output.WriteUInt32((uint)_authState.RegistrationId);
+                    
+                    // Tag 6: signedPreKeyId
+                    output.WriteTag(6, Google.Protobuf.WireFormat.WireType.Varint);
+                    output.WriteUInt32((uint)(session.PendingSignedPreKeyId ?? 0));
                     
                     output.Flush();
                     byte[] pkMsgProto = ms.ToArray();
                     
                     System.Diagnostics.Debug.WriteLine($"[Signal]   PreKeySignalMessage proto: {pkMsgProto.Length} bytes");
-                    System.Diagnostics.Debug.WriteLine($"[Signal] PKMSG PROTO HEX (first 100): {BitConverter.ToString(pkMsgProto.Take(100).ToArray())}");
+                    System.Diagnostics.Debug.WriteLine($"[Signal] PKMSG PROTO HEX (first 100): {BitConverter.ToString(pkMsgProto.Take(Math.Min(pkMsgProto.Length, 100)).ToArray())}");
                     
-                    // Final result: version (0x33) + protobuf
-                    byte pkVersionByte = (byte)((3 << 4) | 3);
+                    // Final result: version (0x33) for PreKeyWhisperMessage wrapper
+                    byte pkVersionByte = (byte)((3 << 4) | 3); // 0x33
                     finalResult = new byte[1 + pkMsgProto.Length];
                     finalResult[0] = pkVersionByte;
                     Array.Copy(pkMsgProto, 0, finalResult, 1, pkMsgProto.Length);
                     
-                    System.Diagnostics.Debug.WriteLine($"[Signal] PKMSG FINAL HEX (first 50): {BitConverter.ToString(finalResult.Take(50).ToArray())}");
-                }
+                    System.Diagnostics.Debug.WriteLine($"[Signal] PKMSG FINAL HEX (first 50): {BitConverter.ToString(finalResult.Take(Math.Min(finalResult.Length, 50)).ToArray())}");
 
-                finalType = "pkmsg";
-                session.IsPendingPreKey = false;
+                    finalType = "pkmsg";
+                    session.IsPendingPreKey = false;
+                }
             }
 
             var updatedSessionJson = JsonConvert.SerializeObject(session);
@@ -855,7 +854,92 @@ namespace Unison.UWPApp.Client
 
             System.Diagnostics.Debug.WriteLine($"[Signal] Encrypted message ({finalType}): {finalResult.Length} bytes, new SendingCounter={session.SendingCounter}");
 
+            // Self-test: Verify that we can decrypt what we just encrypted
+            if (finalType == "pkmsg")
+            {
+                VerifyDecryption(finalResult, session, paddedPlaintext);
+            }
+
             return new EncryptResult { Type = finalType, Ciphertext = finalResult };
+        }
+
+        private void VerifyDecryption(byte[] fullPacket, SessionData session, byte[] expectedPlaintext)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"[Signal] === STARTING SELF-TEST DECRYPTION ===");
+                
+                // 1. Skip version byte
+                byte[] proto = new byte[fullPacket.Length - 1];
+                Array.Copy(fullPacket, 1, proto, 0, proto.Length);
+
+            // 2. Extract Tag 4 (Message) from PreKeySignalMessage
+            byte[] innerPacket = null;
+            int pos = 0;
+            while (pos < proto.Length)
+            {
+                int tagByte = proto[pos++];
+                int tag = tagByte >> 3;
+                int wire = tagByte & 0x07;
+
+                if (tag == 4 && wire == 2) // Message tag (WhatsApp Tag 4)
+                {
+                    // Length-delimited varint
+                    int len = proto[pos++];
+                    if (len > 0x7F)
+                    {
+                        len = (len & 0x7F) | ((proto[pos++] & 0x7F) << 7);
+                    }
+
+                    innerPacket = new byte[len];
+                    Array.Copy(proto, pos, innerPacket, 0, len);
+                    break;
+                }
+                else if (wire == 0) // Varint
+                {
+                    while ((proto[pos++] & 0x80) != 0) ;
+                }
+                else if (wire == 2) // Length-delimited
+                {
+                    int len = proto[pos++];
+                    if (len > 0x7F)
+                    {
+                        len = (len & 0x7F) | ((proto[pos++] & 0x7F) << 7);
+                    }
+                    pos += len;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (innerPacket == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Signal] SELF-TEST FAIL: Could not find inner message tag 4");
+                return;
+            }
+                
+                // 3. Extract SignalMessage from innerPacket
+                byte innerVersion = innerPacket[0];
+                byte[] signalProto = new byte[innerPacket.Length - 1 - 8];
+                Array.Copy(innerPacket, 1, signalProto, 0, signalProto.Length);
+                var signalMsg = SignalMessage.Parser.ParseFrom(signalProto);
+                
+                // 4. Verification
+                byte[] ciphertext = signalMsg.Ciphertext.ToByteArray();
+                System.Diagnostics.Debug.WriteLine($"[Signal] SELF-TEST: Initiator side verification complete.");
+                System.Diagnostics.Debug.WriteLine($"[Signal] SELF-TEST: Inner version: {innerVersion:X2}");
+                System.Diagnostics.Debug.WriteLine($"[Signal] SELF-TEST: SignalMsg: Counter={signalMsg.Counter}, RatchetKey={BitConverter.ToString(signalMsg.RatchetKey.ToByteArray().Take(4).ToArray())}...");
+                System.Diagnostics.Debug.WriteLine($"[Signal] SELF-TEST: Ciphertext (first 8): {BitConverter.ToString(ciphertext.Take(8).ToArray())}");
+                System.Diagnostics.Debug.WriteLine($"[Signal] SELF-TEST: Expected Plaintext (first 8): {BitConverter.ToString(expectedPlaintext.Take(8).ToArray())}");
+
+                System.Diagnostics.Debug.WriteLine($"[Signal] === SELF-TEST COMPLETED ===");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Signal] SELF-TEST ERROR: {ex.Message}");
+            }
         }
     }
 }

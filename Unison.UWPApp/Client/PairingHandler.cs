@@ -438,6 +438,15 @@ namespace Unison.UWPApp.Client
                     DeviceSignature = ByteString.CopyFrom(deviceSignature)
                 };
 
+                // Save account for device-identity node when sending pkmsg (per Baileys messages-send.ts:933-940)
+                _socket.Auth.Account = new AccountInfo
+                {
+                    Details = deviceDetails,
+                    AccountSignatureKey = accountSignatureKey,
+                    AccountSignature = account.AccountSignature.ToByteArray(),
+                    DeviceSignature = deviceSignature
+                };
+
                 // Encode but exclude accountSignatureKey per Baileys encodeSignedDeviceIdentity
                 var accountEnc = EncodeSignedDeviceIdentity(responseAccount, false);
 
@@ -473,6 +482,7 @@ namespace Unison.UWPApp.Client
 
                 // Save state
                 await _authStore.SaveAsync(_socket.Auth);
+
 
                 Debug.WriteLine($"[Pairing] Successfully paired as: {jid}");
                 OnPairingSuccess?.Invoke(this, _socket.Auth.Me);

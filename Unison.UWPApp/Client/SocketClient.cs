@@ -785,6 +785,9 @@ namespace Unison.UWPApp.Client
 
             Debug.WriteLine($"[Socket] Fanning out message {msgId} to {allTargetDevices.Count} devices");
 
+            // Track if we need to include device-identity node (for pkmsg)
+            bool shouldIncludeDeviceIdentity = false;
+
             // Encrypt
             foreach (var deviceJid in allTargetDevices)
             {
@@ -806,6 +809,12 @@ namespace Unison.UWPApp.Client
 
                     var encResult = _signalHandler.EncryptMessage(bytesToEncrypt, deviceJid);
                     
+                    // Track if any message is pkmsg - need to include device-identity node
+                    if (encResult.Type == "pkmsg")
+                    {
+                        shouldIncludeDeviceIdentity = true;
+                    }
+                    
                     var encNode = new BinaryNode("enc", new Dictionary<string, string>
                     {
                         { "v", "2" },
@@ -823,6 +832,17 @@ namespace Unison.UWPApp.Client
             if (encNodes.Count == 0)
                 throw new Exception("Failed to encrypt message for any device.");
 
+            // Build message content
+            var messageContent = new List<BinaryNode> { new BinaryNode("participants", null, encNodes) };
+
+            // Add device-identity node for pkmsg (per Baileys messages-send.ts:933-940)
+            if (shouldIncludeDeviceIdentity && _authState.Account != null)
+            {
+                Debug.WriteLine("[Socket] Including device-identity node for pkmsg");
+                var deviceIdentityBytes = EncodeSignedDeviceIdentity(_authState.Account, true);
+                messageContent.Add(new BinaryNode("device-identity", null, deviceIdentityBytes));
+            }
+
             // Build/Send Node
             var messageNode = new BinaryNode("message", new Dictionary<string, string>
             {
@@ -830,12 +850,13 @@ namespace Unison.UWPApp.Client
                 { "to", recipientBaseJid },
                 { "type", "text" }, 
                 { "t", timestamp.ToString() }
-            }, new List<BinaryNode> { new BinaryNode("participants", null, encNodes) });
+            }, messageContent);
 
             Debug.WriteLine($"[Socket] Sending message node for {msgId}...");
             await SendNodeAsync(messageNode);
             return msgId;
         }
+
 
         /// <summary>
         /// Sends a text message to a JID using an existing Signal session.
@@ -850,6 +871,26 @@ namespace Unison.UWPApp.Client
             return await SendMessageAsync(jid, message);
         }
 
+        /// <summary>
+        /// Encodes ADVSignedDeviceIdentity for device-identity node.
+        /// Per Baileys validate-connection.ts encodeSignedDeviceIdentity function.
+        /// </summary>
+        private byte[] EncodeSignedDeviceIdentity(AccountInfo account, bool includeSignatureKey)
+        {
+            var proto = new Proto.ADVSignedDeviceIdentity
+            {
+                Details = Google.Protobuf.ByteString.CopyFrom(account.Details),
+                AccountSignature = Google.Protobuf.ByteString.CopyFrom(account.AccountSignature),
+                DeviceSignature = Google.Protobuf.ByteString.CopyFrom(account.DeviceSignature)
+            };
+            
+            if (includeSignatureKey && account.AccountSignatureKey?.Length > 0)
+            {
+                proto.AccountSignatureKey = Google.Protobuf.ByteString.CopyFrom(account.AccountSignatureKey);
+            }
+            
+            return proto.ToByteArray();
+        }
 
 
         public class PreKeyBundle
