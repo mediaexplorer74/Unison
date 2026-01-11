@@ -71,17 +71,21 @@
                     
                     <TextBlock Text="Menu" Margin="20" FontSize="20" FontFamily="{StaticResource MainFontSemibold}"/>
                     
-                    <ListView x:Name="NavListView" Grid.Row="1" SelectionMode="Single" SelectionChanged="NavListView_SelectionChanged">
+                    <ListView x:Name="NavListView" Grid.Row="1" SelectionMode="Single" 
+                              SelectionChanged="NavListView_SelectionChanged">
                         <ListViewItem Tag="chats">
                             <StackPanel Orientation="Horizontal" Padding="12">
-                                <TextBlock Text="&#xE8BD;" FontFamily="{StaticResource IconFont}" FontSize="18" VerticalAlignment="Center" Width="24"/>
+                                <TextBlock Text="&#xE8BD;" FontFamily="{StaticResource IconFont}" FontSize="18" 
+                                           VerticalAlignment="Center" Width="24"/>
                                 <TextBlock Text="Chats" Margin="12,0,0,0" FontSize="14" FontFamily="{StaticResource MainFont}"/>
                             </StackPanel>
                         </ListViewItem>
                         <ListViewItem Tag="debug">
                             <StackPanel Orientation="Horizontal" Padding="12">
-                                <TextBlock Text="&#xEBE8;" FontFamily="{StaticResource IconFont}" FontSize="18" VerticalAlignment="Center" Width="24" Foreground="{StaticResource UnisonGreenBrush}"/>
-                                <TextBlock Text="Debug &amp; Logs" Margin="12,0,0,0" FontSize="14" FontFamily="{StaticResource MainFont}" Foreground="{StaticResource UnisonGreenBrush}"/>
+                                <TextBlock Text="&#xEBE8;" FontFamily="{StaticResource IconFont}" FontSize="18" 
+                                           VerticalAlignment="Center" Width="24" Foreground="{StaticResource UnisonGreenBrush}"/>
+                                <TextBlock Text="Debug &amp; Logs" Margin="12,0,0,0" FontSize="14" FontFamily="{StaticResource MainFont}" 
+                                           Foreground="{StaticResource UnisonGreenBrush}"/>
                             </StackPanel>
                         </ListViewItem>
                     </ListView>
@@ -96,13 +100,15 @@
                     </Grid.ColumnDefinitions>
                     
                     <!-- Left: Chat List -->
-                    <views:ChatListView x:Name="ChatListPart" MenuClicked="ChatListPart_MenuClicked" ChatSelected="ChatListPart_ChatSelected"/>
+                    <views:ChatListView x:Name="ChatListPart" MenuClicked="ChatListPart_MenuClicked" 
+                                        ChatSelected="ChatListPart_ChatSelected"/>
                     
                     <!-- Right: Chat Detail -->
                     <views:ChatDetailView x:Name="ChatDetailPart" Grid.Column="1"/>
 
                     <!-- Full Screen Debug View -->
-                    <views:DebugView x:Name="DebugPart" Grid.ColumnSpan="2" Visibility="Collapsed" BackRequested="DebugPart_BackRequested"/>
+                    <views:DebugView x:Name="DebugPart" Grid.ColumnSpan="2" Visibility="Collapsed" 
+                                     BackRequested="DebugPart_BackRequested"/>
                 </Grid>
             </SplitView.Content>
         </SplitView>

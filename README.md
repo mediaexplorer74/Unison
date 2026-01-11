@@ -1,10 +1,25 @@
-# Unison "pr-1" - main branch
+# Unison v 1.0.0 "pr-1" - main branch
+
+![](Images/logo.png)
+
+Note: this is only my fork. Original is here: https://github.com/MaskNinjaSquared/Unison/
+
+## About
+
 UWP WhatsApp client aimed primarily for Windows 10 Mobile from porting Baileys
 (secondary WhatsApp MD device client)
 
+## Screenshot (Windows 11, not W10M)
+
+![](Images/sshot01.png)
+
+## Tech. details
+- Win. SDK Build = 19041
+- Min. Win. SDK Build = 15063 
+
 ## Status
 
-As is. Only forked by me (for future own mini-research).
+As is. Only forked by me (for future own mini-research). So, no special features.
 
 What works:
 
@@ -43,3 +58,5 @@ Where to download "pr-1" appx (url):
 
 ## ..
 - ME 2026
+
+![](Images/footer.png)

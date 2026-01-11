@@ -17,21 +17,21 @@ echo Platform: %PLATFORM%
 echo Started: %DATE% %TIME%
 echo ============================================
 
-call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\Tools\VsDevCmd.bat"
+call "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
 
 cd /d "%~dp0"
 
 echo.
 echo Step 1: Clean...
-msbuild Unison.UWPApp.sln /t:Clean /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /v:q /nologo
+msbuild Unison.sln /t:Clean /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /v:q /nologo
 
 echo.
 echo Step 2: Restore packages...
-msbuild Unison.UWPApp.sln /t:Restore /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /v:q /nologo
+msbuild Unison.sln /t:Restore /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /v:q /nologo
 
 echo.
 echo Step 3: Build and Package...
-msbuild Unison.UWPApp.sln /t:Build /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /v:m /nologo /fl /flp:logfile=logs\build.log;verbosity=normal
+msbuild Unison.sln /t:Build /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /v:m /nologo /fl /flp:logfile=logs\build.log;verbosity=normal
 
 set BUILD_RESULT=%ERRORLEVEL%
 
